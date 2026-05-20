@@ -36,24 +36,25 @@ if st.session_state.get("_last_keyword") != keyword:
     st.session_state["_last_keyword"] = keyword
 page = st.session_state.setdefault("page", 0)
 
-try:
-    result = get_dashboards(keyword=keyword, limit=PAGE_SIZE, offset=page * PAGE_SIZE)
-except requests.HTTPError as e:
-    st.error(
-        f"Couldn't load dashboards (HTTP {e.response.status_code}). "
-        "Please try again in a moment, or contact support if the problem continues."
-    )
-    with st.expander("Technical details"):
-        st.code(e.response.text or str(e), language="text")
-    st.stop()
-except requests.RequestException as e:
-    st.error(
-        "We couldn't reach Incorta to load dashboards. "
-        "Please check your connection and try again."
-    )
-    with st.expander("Technical details"):
-        st.code(str(e), language="text")
-    st.stop()
+with st.spinner("Loading dashboards…"):
+    try:
+        result = get_dashboards(keyword=keyword, limit=PAGE_SIZE, offset=page * PAGE_SIZE)
+    except requests.HTTPError as e:
+        st.error(
+            f"Couldn't load dashboards (HTTP {e.response.status_code}). "
+            "Please try again in a moment, or contact support if the problem continues."
+        )
+        with st.expander("Technical details"):
+            st.code(e.response.text or str(e), language="text")
+        st.stop()
+    except requests.RequestException as e:
+        st.error(
+            "We couldn't reach Incorta to load dashboards. "
+            "Please check your connection and try again."
+        )
+        with st.expander("Technical details"):
+            st.code(str(e), language="text")
+        st.stop()
 
 items = result.get("results", []) if isinstance(result, dict) else []
 total = (
@@ -105,18 +106,19 @@ def _request_access_dialog(picks: list[dict]):
         width="stretch",
         disabled=not email_valid,
     ):
-        try:
-            request_id = insert_access_request(
-                email=email.strip(), picks=picks, note=note
-            )
-        except Exception as e:
-            st.error(
-                "We couldn't save your request. Please try again, or contact "
-                "support if the problem continues."
-            )
-            with st.expander("Technical details"):
-                st.code(str(e), language="text")
-            return
+        with st.spinner("Submitting request…"):
+            try:
+                request_id = insert_access_request(
+                    email=email.strip(), picks=picks, note=note
+                )
+            except Exception as e:
+                st.error(
+                    "We couldn't save your request. Please try again, or contact "
+                    "support if the problem continues."
+                )
+                with st.expander("Technical details"):
+                    st.code(str(e), language="text")
+                return
         st.session_state["requester_email"] = email.strip()
         st.session_state["_last_request"] = {
             "items": picks,

@@ -8,6 +8,8 @@ from utils.dashboards import resolve_dashboard_id
 from utils.incorta_api import create_permission, revoke_permission
 from utils.users import resolve_user_id
 
+_PAGE_SIZE = 10
+
 _STATUS_BADGE = {
     "PENDING": ":orange-badge[Pending]",
     "APPROVED": ":green-badge[Approved]",
@@ -22,80 +24,113 @@ def _short_path(path: str) -> str:
 
 
 def _fmt_ts(ts) -> str:
-    if not ts:
+    if ts is None:
         return "—"
-    return ts.strftime("%b %d, %Y · %H:%M UTC")
+    try:
+        return ts.strftime("%b %d, %Y · %H:%M UTC")
+    except (ValueError, AttributeError):
+        return "—"
 
 
 def _approve_request(request_id: str, email: str, items: list[dict]) -> None:
+    with st.spinner("Granting access…"):
+        try:
+            user_id = resolve_user_id(email)
+        except Exception as e:
+            st.error(f"Couldn't look up user `{email}`.")
+            with st.expander("Technical details"):
+                st.code(str(e), language="text")
+            return
+
+        if user_id is None:
+            st.error(f"No Incorta user found for `{email}`.")
+            return
+
+        try:
+            for it in items:
+                content_id = resolve_dashboard_id(it["dashboard_identifier"])
+                if content_id is None:
+                    st.error(
+                        f"Couldn't resolve dashboard "
+                        f"`{it['dashboard_name'] or it['dashboard_identifier']}`."
+                    )
+                    return
+                create_permission(destination_id=user_id, content_id=content_id)
+        except Exception as e:
+            st.error("Couldn't grant access in Incorta. No status change applied.")
+            with st.expander("Technical details"):
+                st.code(str(e), language="text")
+            return
+
     try:
-        user_id = resolve_user_id(email)
+        update_request_status(request_id, "APPROVED")
     except Exception as e:
-        st.error(f"Couldn't look up user `{email}`.")
+        st.error(
+            "Access was granted in Incorta but the status couldn't be saved. Please refresh the page.",
+            icon=":material/warning:",
+        )
         with st.expander("Technical details"):
             st.code(str(e), language="text")
         return
-
-    if user_id is None:
-        st.error(f"No Incorta user found for `{email}`.")
-        return
-
-    try:
-        for it in items:
-            content_id = resolve_dashboard_id(it["dashboard_identifier"])
-            if content_id is None:
-                st.error(
-                    f"Couldn't resolve dashboard "
-                    f"`{it['dashboard_name'] or it['dashboard_identifier']}`."
-                )
-                return
-            create_permission(destination_id=user_id, content_id=content_id)
-    except Exception as e:
-        st.error("Couldn't grant access in Incorta. No status change applied.")
-        with st.expander("Technical details"):
-            st.code(str(e), language="text")
-        return
-
-    update_request_status(request_id, "APPROVED")
     st.rerun()
 
 
 def _revoke_request(request_id: str, email: str, items: list[dict]) -> None:
+    with st.spinner("Revoking access…"):
+        try:
+            user_id = resolve_user_id(email)
+        except Exception as e:
+            st.error(f"Couldn't look up user `{email}`.")
+            with st.expander("Technical details"):
+                st.code(str(e), language="text")
+            return
+
+        if user_id is None:
+            st.error(f"No Incorta user found for `{email}`.")
+            return
+
+        try:
+            for it in items:
+                content_id = resolve_dashboard_id(it["dashboard_identifier"])
+                if content_id is None:
+                    st.error(
+                        f"Couldn't resolve dashboard "
+                        f"`{it['dashboard_name'] or it['dashboard_identifier']}`."
+                    )
+                    return
+                revoke_permission(destination_id=user_id, content_id=content_id)
+        except Exception as e:
+            st.error("Couldn't revoke access in Incorta. No status change applied.")
+            with st.expander("Technical details"):
+                st.code(str(e), language="text")
+            return
+
     try:
-        user_id = resolve_user_id(email)
+        update_request_status(request_id, "REVOKED")
     except Exception as e:
-        st.error(f"Couldn't look up user `{email}`.")
+        st.error(
+            "Access was revoked in Incorta but the status couldn't be saved. Please refresh the page.",
+            icon=":material/warning:",
+        )
         with st.expander("Technical details"):
             st.code(str(e), language="text")
         return
-
-    if user_id is None:
-        st.error(f"No Incorta user found for `{email}`.")
-        return
-
-    try:
-        for it in items:
-            content_id = resolve_dashboard_id(it["dashboard_identifier"])
-            if content_id is None:
-                st.error(
-                    f"Couldn't resolve dashboard "
-                    f"`{it['dashboard_name'] or it['dashboard_identifier']}`."
-                )
-                return
-            revoke_permission(destination_id=user_id, content_id=content_id)
-    except Exception as e:
-        st.error("Couldn't revoke access in Incorta. No status change applied.")
-        with st.expander("Technical details"):
-            st.code(str(e), language="text")
-        return
-
-    update_request_status(request_id, "REVOKED")
     st.rerun()
 
 
 st.title("Access requests", anchor=False)
 
-rows = get_all_requests()
+try:
+    with st.spinner("Loading requests…"):
+        rows = get_all_requests()
+except Exception as e:
+    st.error(
+        "We couldn't load the requests right now. Please try again in a moment.",
+        icon=":material/cloud_off:",
+    )
+    with st.expander("Technical details"):
+        st.code(str(e), language="text")
+    st.stop()
 
 if not rows:
     st.info("No access requests yet.", icon=":material/inbox:")
@@ -181,12 +216,37 @@ groups: OrderedDict[str, list[dict]] = OrderedDict()
 for r in sorted(rows, key=lambda r: r["created_at"], reverse=True):
     groups.setdefault(r["request_id"], []).append(r)
 
-st.caption(
-    f"{len(groups)} request{'s' if len(groups) != 1 else ''}"
+n_groups = len(groups)
+total_pages = max(1, (n_groups + _PAGE_SIZE - 1) // _PAGE_SIZE)
+
+filter_key = (status_filter, keyword)
+if st.session_state.get("_review_filter_key") != filter_key:
+    st.session_state["_review_page"] = 1
+    st.session_state["_review_filter_key"] = filter_key
+
+page = min(st.session_state.get("_review_page", 1), total_pages)
+
+summary_col, page_col = st.columns([3, 2], vertical_alignment="center")
+summary_col.caption(
+    f"{n_groups} request{'s' if n_groups != 1 else ''}"
     f" · {len(rows)} dashboard{'s' if len(rows) != 1 else ''}"
+    + (f" · page {page} of {total_pages}" if total_pages > 1 else "")
 )
 
-for request_id, items in groups.items():
+if total_pages > 1:
+    with page_col.container(horizontal=True, horizontal_alignment="right"):
+        if st.button("", icon=":material/chevron_left:", key="prev_page", disabled=page <= 1):
+            st.session_state["_review_page"] = page - 1
+            st.rerun()
+        st.markdown(f":small[**{page}** / {total_pages}]")
+        if st.button("", icon=":material/chevron_right:", key="next_page", disabled=page >= total_pages):
+            st.session_state["_review_page"] = page + 1
+            st.rerun()
+
+start = (page - 1) * _PAGE_SIZE
+page_groups = list(groups.items())[start : start + _PAGE_SIZE]
+
+for request_id, items in page_groups:
     head = items[0]
     with st.container(border=True, key=f"req_card_{request_id}"):
 
@@ -239,8 +299,18 @@ for request_id, items in groups.items():
                 icon=":material/close:",
                 width="stretch",
             ):
-                update_request_status(request_id, "REJECTED")
-                st.rerun()
+                try:
+                    with st.spinner("Rejecting request…"):
+                        update_request_status(request_id, "REJECTED")
+                except Exception as e:
+                    st.error(
+                        "Couldn't update the request status. Please try again.",
+                        icon=":material/error:",
+                    )
+                    with st.expander("Technical details"):
+                        st.code(str(e), language="text")
+                else:
+                    st.rerun()
         elif head["status"] == "APPROVED":
             st.divider()
             if st.button(

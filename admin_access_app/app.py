@@ -9,7 +9,19 @@ st.set_page_config(
 from utils.db import ensure_schema
 from utils.page_setup import apply_theme
 
-ensure_schema()
+try:
+    ensure_schema()
+except Exception as e:
+    apply_theme()
+    st.error(
+        "We couldn't connect to the database. "
+        "Please try refreshing the page, or contact support if the issue persists.",
+        icon=":material/cloud_off:",
+    )
+    with st.expander("Technical details"):
+        st.code(str(e), language="text")
+    st.stop()
+
 apply_theme()
 
 pg = st.navigation(
