@@ -72,6 +72,29 @@ def get_dashboards(keyword: str = None, limit: int = 200, offset: int = 0) -> di
     return res
 
 
+def _service_post(url: str, payload: dict) -> requests.Response:
+    session = _login_session()
+    response = session.post(url, data=payload, timeout=30)
+    # 401 = expired token; retry once with a fresh login
+    if response.status_code == 401:
+        _login_session.clear()
+        session = _login_session()
+        response = session.post(url, data=payload, timeout=30)
+    return response
+
+
+def _raise_incorta_error(response: requests.Response) -> None:
+    """Raise an exception with the Incorta error body, falling back to HTTP status."""
+    try:
+        body = response.json()
+        msg = body.get("error") or body.get("message") or str(body)
+    except Exception:
+        msg = response.text or f"HTTP {response.status_code}"
+    raise requests.HTTPError(
+        f"HTTP {response.status_code}: {msg}", response=response
+    )
+
+
 def create_permission(
     destination_id: int,
     content_id: int,
@@ -93,13 +116,31 @@ def create_permission(
         "contentType": content_type,
         "code": code,
     }
-    session = _login_session()
-    print(session)
-
-    response = session.post(url, data=payload, timeout=30)
-    if response.status_code == 401:
-        _login_session.clear()
-        session = _login_session()
-        response = session.post(url, data=payload, timeout=30)
-    response.raise_for_status()
+    response = _service_post(url, payload)
+    if response.status_code not in (200, 201):
+        _raise_incorta_error(response)
     return response.json() if response.text else {}
+
+
+def revoke_permission(
+    destination_id: int,
+    content_id: int,
+    *,
+    destination_type: int = 0,
+    content_type: int = 4,
+) -> None:
+    """Revoke a permission on an Incorta content item from a user/group.
+
+    Uses updatePermission with code=0 (revoke). Accepts 200 or 204.
+    """
+    url = f"{_base_url()}/incorta/service/permission/updatePermission"
+    payload = {
+        "destinationId": destination_id,
+        "destinationType": destination_type,
+        "contentId": content_id,
+        "contentType": content_type,
+        "code": 0,
+    }
+    response = _service_post(url, payload)
+    if response.status_code not in (200, 204):
+        _raise_incorta_error(response)

@@ -1,13 +1,12 @@
-from datetime import datetime, timezone
-
-import re
-
-import requests
 import streamlit as st
+
+from datetime import datetime, timezone
+import re
+import requests
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-from utils.db import ensure_schema, insert_access_request
+from utils.db import insert_access_request
 from utils.incorta_api import get_dashboards
 
 PAGE_SIZE = 9
@@ -23,8 +22,6 @@ def _short_path(path: str) -> str:
     parts = (path or "").split("/", 1)
     return parts[1] if len(parts) > 1 else (path or "")
 
-
-ensure_schema()
 
 st.title("Request dashboard access", anchor=False)
 
@@ -132,10 +129,16 @@ def _request_access_dialog(picks: list[dict]):
 
 
 if msg := st.session_state.pop("_last_request", None):
+    n = len(msg["items"])
     st.success(
-        f"Access request submitted for {len(msg['items'])} dashboard"
-        f"{'s' if len(msg['items']) != 1 else ''}. An approver will review it shortly.",
+        f"Access request submitted for {n} dashboard{'s' if n != 1 else ''}. "
+        "An approver will review it shortly.",
         icon=":material/check_circle:",
+    )
+    st.page_link(
+        "app_pages/my_requests.py",
+        label="View my requests",
+        icon=":material/arrow_forward:",
     )
 
 total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
