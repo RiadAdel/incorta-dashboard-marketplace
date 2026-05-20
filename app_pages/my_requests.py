@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 
 from utils.db import get_requests_for_email
 
+_PAGE_SIZE = 10
+
 _STATUS_ICON = {
     "APPROVED": ":material/check_circle:",
     "REJECTED": ":material/cancel:",
@@ -17,9 +19,12 @@ _STATUS_COLOR = {
 
 
 def _fmt_ts(ts) -> str:
-    if not ts:
+    if ts is None:
         return "—"
-    return ts.strftime("%b %d, %Y %H:%M UTC")
+    try:
+        return ts.strftime("%b %d, %Y %H:%M UTC")
+    except (ValueError, AttributeError):
+        return "—"
 
 
 def _short_path(path: str) -> str:
@@ -40,7 +45,17 @@ if not email or not email.strip():
     st.info("Enter your email above to see your access requests.", icon=":material/info:")
     st.stop()
 
-rows = get_requests_for_email(email.strip())
+try:
+    with st.spinner("Loading your requests…"):
+        rows = get_requests_for_email(email.strip())
+except Exception as e:
+    st.error(
+        "We couldn't load your requests right now. Please try again in a moment.",
+        icon=":material/cloud_off:",
+    )
+    with st.expander("Technical details"):
+        st.code(str(e), language="text")
+    st.stop()
 
 if not rows:
     st.info("No access requests found for this email.", icon=":material/inbox:")
@@ -57,9 +72,34 @@ sorted_groups = sorted(
 )
 
 n = len(sorted_groups)
-st.caption(f"{n} request{'s' if n != 1 else ''}")
+total_pages = max(1, (n + _PAGE_SIZE - 1) // _PAGE_SIZE)
 
-for req_id, req_rows in sorted_groups:
+if st.session_state.get("_my_req_email") != email.strip():
+    st.session_state["_my_req_page"] = 1
+    st.session_state["_my_req_email"] = email.strip()
+
+page = min(st.session_state.get("_my_req_page", 1), total_pages)
+
+summary_col, page_col = st.columns([3, 2], vertical_alignment="center")
+summary_col.caption(
+    f"{n} request{'s' if n != 1 else ''}"
+    + (f" · page {page} of {total_pages}" if total_pages > 1 else "")
+)
+
+if total_pages > 1:
+    with page_col.container(horizontal=True, horizontal_alignment="right"):
+        if st.button("", icon=":material/chevron_left:", key="prev_page", disabled=page <= 1):
+            st.session_state["_my_req_page"] = page - 1
+            st.rerun()
+        st.markdown(f":small[**{page}** / {total_pages}]")
+        if st.button("", icon=":material/chevron_right:", key="next_page", disabled=page >= total_pages):
+            st.session_state["_my_req_page"] = page + 1
+            st.rerun()
+
+start = (page - 1) * _PAGE_SIZE
+page_groups = sorted_groups[start : start + _PAGE_SIZE]
+
+for req_id, req_rows in page_groups:
     first = req_rows[0]
     status = first.get("status", "PENDING")
     color = _STATUS_COLOR.get(status, "orange")
