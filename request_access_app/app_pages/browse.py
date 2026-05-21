@@ -19,8 +19,14 @@ def _fmt_date(ms: int | None) -> str:
 
 
 def _short_path(path: str) -> str:
-    parts = (path or "").split("/", 1)
-    return parts[1] if len(parts) > 1 else (path or "")
+    """Return the folder portion of an Incorta path.
+
+    Strips the leading tenant prefix and the trailing dashboard name,
+    since the name is already shown as the card title.
+    """
+    parts = [p for p in (path or "").split("/") if p]
+    folders = parts[1:-1] if len(parts) > 2 else []
+    return "/".join(folders) or "—"
 
 
 st.title("Request dashboard access", anchor=False)
@@ -74,15 +80,25 @@ def _toggle(item: dict):
         selected.pop(ident, None)
 
 
+def _clear_selection():
+    st.session_state.selected_dashboards.clear()
+    for k in [k for k in st.session_state if k.startswith("select_")]:
+        st.session_state[k] = False
+
+
 @st.dialog("Request access", dismissible=True)
 def _request_access_dialog(picks: list[dict]):
-    st.write(
-        f"You're requesting access to **{len(picks)}** dashboard{'s' if len(picks) != 1 else ''}:"
+    n = len(picks)
+    st.caption(
+        f"Requesting access to {n} dashboard{'s' if n != 1 else ''}"
     )
-    for p in picks:
-        st.markdown(
-            f"- :material/dashboard: **{p.get('name')}** &nbsp; :small[{_short_path(p.get('path', ''))}]"
-        )
+    with st.container(border=True):
+        for p in picks:
+            st.markdown(
+                f":material/space_dashboard: **{p.get('name')}**"
+                f" &nbsp; :small[{_short_path(p.get('path', ''))}]"
+            )
+
     email = st.text_input(
         "Your email",
         value=st.session_state.get("requester_email", ""),
@@ -90,7 +106,8 @@ def _request_access_dialog(picks: list[dict]):
         help="We'll grant access to this email address.",
     )
     note = st.text_area(
-        "Optional note for the approver", placeholder="Why do you need access?"
+        "Optional note for the approver",
+        placeholder="Why do you need access?",
     )
 
     email_valid = bool(_EMAIL_RE.match(email.strip()))
@@ -98,10 +115,11 @@ def _request_access_dialog(picks: list[dict]):
         st.warning("Please enter a valid email address.", icon=":material/warning:")
 
     cols = st.columns(2)
-    if cols[0].button("Cancel", width="stretch"):
+    if cols[0].button("Cancel", icon=":material/close:", width="stretch"):
         st.rerun()
     if cols[1].button(
         "Submit request",
+        icon=":material/send:",
         type="primary",
         width="stretch",
         disabled=not email_valid,
@@ -126,7 +144,7 @@ def _request_access_dialog(picks: list[dict]):
             "email": email.strip(),
             "request_id": request_id,
         }
-        st.session_state.selected_dashboards = {}
+        _clear_selection()
         st.rerun()
 
 
@@ -156,14 +174,21 @@ def render_dashboards():
         left, right = st.columns([3, 2], vertical_alignment="center")
         with left:
             if selected:
-                st.markdown(f"**{len(selected)}** selected")
+                st.markdown(
+                    f":material/check_box: &nbsp;**{len(selected)}** dashboard"
+                    f"{'s' if len(selected) != 1 else ''} selected"
+                )
             else:
-                st.markdown(":small[Select dashboards to request access]")
+                st.markdown(
+                    ":small[Select one or more dashboards to request access]"
+                )
         with right.container(horizontal=True, horizontal_alignment="right"):
             st.button(
                 "Clear",
+                icon=":material/clear_all:",
                 disabled=not selected,
-                on_click=lambda: st.session_state.selected_dashboards.clear(),
+                on_click=_clear_selection,
+                help="Deselect all dashboards",
             )
             if st.button(
                 "Request access",
@@ -196,9 +221,9 @@ def render_dashboards():
                     on_change=_toggle,
                     args=(item,),
                 )
-                st.caption(_short_path(item.get("path", "")))
-                st.markdown(
-                    f":small[**Created**] {_fmt_date(item.get('creationDate'))}"
+                st.caption(f":material/folder: &nbsp;{_short_path(item.get('path', ''))}")
+                st.caption(
+                    f":material/calendar_today: &nbsp;Created {_fmt_date(item.get('creationDate'))}"
                 )
 
     if total_pages > 1:
