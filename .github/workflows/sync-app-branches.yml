@@ -1,0 +1,43 @@
+name: Sync app branches
+
+# After every push to main, split each app folder into its own branch.
+# The target branches contain only the contents of one app, with the app
+# folder promoted to the repo root — ready for Streamlit Cloud (or any
+# deployer that expects the app at the root of the branch).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - prefix: admin_access_app
+            branch: admin-app
+          - prefix: request_access_app
+            branch: request-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Split ${{ matrix.prefix }} -> ${{ matrix.branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # `git subtree split` rewrites history so that ${{ matrix.prefix }}
+          # appears as the repo root. The output is a new commit hash.
+          split_sha=$(git subtree split --prefix=${{ matrix.prefix }})
+
+          # Force-push that history to the deployment branch. Force is
+          # required because each split produces a fresh history.
+          git push origin "$split_sha:refs/heads/${{ matrix.branch }}" --force
