@@ -92,9 +92,12 @@ def update_request_status(
 
 
 def get_requests_for_email(email: str) -> list[dict]:
+    """Return all request rows whose requester_email contains `email` (case-insensitive)."""
     df = _conn().query(
-        "SELECT * FROM access_requests WHERE requester_email = :email ORDER BY created_at DESC",
-        params={"email": email},
+        "SELECT * FROM access_requests "
+        "WHERE requester_email ILIKE :email "
+        "ORDER BY created_at DESC",
+        params={"email": f"%{email}%"},
         ttl=0,
     )
     return df.to_dict(orient="records")

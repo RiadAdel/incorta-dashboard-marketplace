@@ -36,18 +36,20 @@ f1, f2, f3, f4 = st.columns([3, 3, 3, 2], vertical_alignment="bottom")
 status_filter: list[str] = f1.multiselect(
     "Status",
     options=_ALL_STATUSES,
-    default=None,
     placeholder="All statuses",
+    key="_all_req_status",
 )
 
 email_filter: str = f2.text_input(
     "Requester email",
     placeholder="Filter by email…",
+    key="_all_req_email",
 )
 
 dashboard_filter: str = f3.text_input(
     "Dashboard name",
     placeholder="Filter by name…",
+    key="_all_req_dashboard",
 )
 
 # ── Apply filters ───────────────────────────────────────────────────────────
@@ -110,12 +112,32 @@ if st.session_state.get("_all_req_filter_key") != filter_key:
 page = st.session_state.get("_all_req_page", 1)
 page = min(page, total_pages)
 
+filters_active = bool(status_filter or email_filter.strip() or dashboard_filter.strip())
+
 summary_col, page_col = st.columns([3, 2], vertical_alignment="center")
-summary_col.caption(
-    f"{n_requests} request{'s' if n_requests != 1 else ''}"
-    f" · {n_rows} row{'s' if n_rows != 1 else ''}"
-    + (f" · page {page} of {total_pages}" if total_pages > 1 else "")
-)
+
+with summary_col.container(horizontal=True, vertical_alignment="center"):
+    range_str = ""
+    if total_pages > 1:
+        range_str = (
+            f" · showing {(page - 1) * _PAGE_SIZE + 1}–"
+            f"{min(page * _PAGE_SIZE, n_rows)}"
+        )
+    st.caption(
+        f"{n_requests} request{'s' if n_requests != 1 else ''}"
+        f" · {n_rows} row{'s' if n_rows != 1 else ''}"
+        + range_str
+    )
+    if filters_active:
+        if st.button(
+            "Clear filters",
+            icon=":material/filter_alt_off:",
+            key="clear_filters",
+            help="Reset all filters",
+        ):
+            for k in ("_all_req_status", "_all_req_email", "_all_req_dashboard"):
+                st.session_state.pop(k, None)
+            st.rerun()
 
 if total_pages > 1:
     with page_col.container(horizontal=True, horizontal_alignment="right"):
@@ -124,6 +146,7 @@ if total_pages > 1:
             icon=":material/chevron_left:",
             key="prev_page",
             disabled=page <= 1,
+            help="Previous page",
         ):
             st.session_state["_all_req_page"] = page - 1
             st.rerun()
@@ -133,6 +156,7 @@ if total_pages > 1:
             icon=":material/chevron_right:",
             key="next_page",
             disabled=page >= total_pages,
+            help="Next page",
         ):
             st.session_state["_all_req_page"] = page + 1
             st.rerun()

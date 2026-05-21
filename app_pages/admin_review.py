@@ -11,10 +11,10 @@ from utils.users import resolve_user_id
 _PAGE_SIZE = 10
 
 _STATUS_BADGE = {
-    "PENDING": ":orange-badge[Pending]",
-    "APPROVED": ":green-badge[Approved]",
-    "REJECTED": ":red-badge[Rejected]",
-    "REVOKED": ":gray-badge[Revoked]",
+    "PENDING":  ":orange-badge[:material/pending: Pending]",
+    "APPROVED": ":green-badge[:material/check_circle: Approved]",
+    "REJECTED": ":red-badge[:material/cancel: Rejected]",
+    "REVOKED":  ":gray-badge[:material/block: Revoked]",
 }
 
 
@@ -235,11 +235,23 @@ summary_col.caption(
 
 if total_pages > 1:
     with page_col.container(horizontal=True, horizontal_alignment="right"):
-        if st.button("", icon=":material/chevron_left:", key="prev_page", disabled=page <= 1):
+        if st.button(
+            "",
+            icon=":material/chevron_left:",
+            key="prev_page",
+            disabled=page <= 1,
+            help="Previous page",
+        ):
             st.session_state["_review_page"] = page - 1
             st.rerun()
         st.markdown(f":small[**{page}** / {total_pages}]")
-        if st.button("", icon=":material/chevron_right:", key="next_page", disabled=page >= total_pages):
+        if st.button(
+            "",
+            icon=":material/chevron_right:",
+            key="next_page",
+            disabled=page >= total_pages,
+            help="Next page",
+        ):
             st.session_state["_review_page"] = page + 1
             st.rerun()
 
@@ -265,7 +277,7 @@ for request_id, items in page_groups:
         st.caption(f"{n} dashboard{'s' if n != 1 else ''} requested")
         for it in items:
             st.markdown(
-                f":material/dashboard: **{it['dashboard_name'] or it['dashboard_identifier']}**"
+                f":material/space_dashboard: **{it['dashboard_name'] or it['dashboard_identifier']}**"
                 f" &nbsp; :small[{_short_path(it['dashboard_path'] or '')}]"
             )
 
