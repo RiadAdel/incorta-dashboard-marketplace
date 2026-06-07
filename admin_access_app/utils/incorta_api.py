@@ -1,5 +1,15 @@
+import socket
+
 import requests
 import streamlit as st
+import urllib3.util.connection as urllib3_connection
+
+# Force IPv4 for all outbound requests. Some networks (notably IPv6-only mobile
+# hotspots using NAT64/DNS64) resolve the Incorta cluster to a broken IPv6 path
+# where the TCP handshake succeeds but the TLS handshake is blackholed, causing
+# requests to hang until they time out. The cluster's IPv4 endpoint works fine,
+# so we make urllib3 only consider IPv4 addresses.
+urllib3_connection.allowed_gai_family = lambda: socket.AF_INET
 
 
 def _base_url() -> str:

@@ -10,9 +10,10 @@ def resolve_dashboard_id(guid: str) -> int | None:
     """
     if not guid:
         return None
+    table = st.secrets["dashboard_table"]
     conn = st.connection("postgresql", type="sql")
     df = conn.query(
-        "SELECT id FROM _incortametadata.dashboard WHERE guid = :guid LIMIT 1",
+        f"SELECT id FROM {table} WHERE guid = :guid LIMIT 1",
         params={"guid": guid},
         ttl=0,
     )

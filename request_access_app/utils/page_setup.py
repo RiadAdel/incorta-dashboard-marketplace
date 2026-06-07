@@ -1,18 +1,18 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
+from utils.logo import LOGO_DARK_SVG, LOGO_SVG
+
 
 def apply_theme() -> str:
     """Render the logo, theme toggle, and page-wide CSS. Returns 'dark' or 'light'."""
     theme = getattr(getattr(st.context, "theme", None), "type", "dark") or "dark"
 
-    logo_path = (
-        "static/incorta-logo-dark.svg" if theme == "light" else "static/incorta-logo.svg"
-    )
+    logo_svg = LOGO_DARK_SVG if theme == "light" else LOGO_SVG
 
     _, logo_col, toggle_col = st.columns([1, 4, 1], vertical_alignment="center")
     with logo_col.container(horizontal_alignment="center"):
-        st.image(logo_path, width=280)
+        st.image(logo_svg, width=280)
     with toggle_col.container(horizontal=True, horizontal_alignment="right"):
         label, tooltip = (
             (":material/light_mode:", "Switch to light mode")

@@ -1,9 +1,21 @@
-<?xml version="1.0" encoding="UTF-8"?>
+"""Embedded Incorta logo assets.
+
+The SVG markup is inlined here (rather than read from static/*.svg) so the app
+doesn't depend on uploading .svg files, which some hosts disallow.
+
+The two variants are identical except for the fill color:
+  - LOGO_SVG       light fill (#e8e6f0), used on the dark theme
+  - LOGO_DARK_SVG  dark fill  (#15152b), used on the light theme
+"""
+
+import base64
+
+LOGO_SVG = """<?xml version="1.0" encoding="UTF-8"?>
 <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 555.63 125.85">
   <defs>
     <style>
       .cls-1 {
-        fill: #15152b;
+        fill: #e8e6f0;
       }
     </style>
   </defs>
@@ -15,4 +27,12 @@
   <path class="cls-1" d="M41.91,41.36v-9.15H0l.2,25.44h6.22c5.67,0,10.06,4.8,10.06,10.46v56.15h25.43V41.36h0Z"/>
   <circle class="cls-1" cx="29.71" cy="12.97" r="12.97"/>
   <path class="cls-1" d="M539.35,88.28v-56.2h-22.28v7.08c-2.36-1.49-4.86-2.75-7.45-3.78-5.74-2.23-11.85-3.35-18.01-3.3-6.05,0-12.05,1.22-17.62,3.59-5.7,2.43-10.89,5.93-15.26,10.32-4.32,4.28-7.75,9.37-10.1,14.98-2.33,5.61-3.52,11.64-3.51,17.72-.03,6.07,1.1,12.09,3.32,17.74,2.25,5.63,5.57,10.77,9.79,15.12,4.26,4.6,9.42,8.26,15.17,10.75,5.87,2.42,12.17,3.62,18.52,3.53,6.36.06,12.66-1.15,18.55-3.55,2.59-1.08,5.08-2.41,7.42-3.95v6.73h37.74v-26.42h-5.9c-5.73.02-10.39-4.62-10.39-10.35ZM507,94.55c-7.75,8.21-20.69,8.58-28.9.83-.28-.27-.56-.55-.83-.83-4.02-4.16-6.26-9.72-6.25-15.5-.04-5.82,2.18-11.42,6.19-15.64,7.75-8.23,20.71-8.61,28.93-.86.29.28.58.56.86.86,4.01,4.22,6.22,9.83,6.19,15.64.03,5.77-2.19,11.33-6.19,15.5h0Z"/>
-</svg>
+</svg>"""
+
+LOGO_DARK_SVG = LOGO_SVG.replace("#e8e6f0", "#15152b")
+
+
+def logo_data_uri(svg: str = LOGO_SVG) -> str:
+    """Return an SVG as a base64 data URI, suitable for st.set_page_config(page_icon=...)."""
+    encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    return f"data:image/svg+xml;base64,{encoded}"
