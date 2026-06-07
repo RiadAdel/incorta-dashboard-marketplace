@@ -10,14 +10,15 @@ def resolve_user_id(email: str) -> int | None:
     """
     if not email:
         return None
+    table = st.secrets["user_table"]
     conn = st.connection("postgresql", type="sql")
     df = conn.query(
-        'SELECT id FROM _incortametadata."user" WHERE email = :email LIMIT 1',
+        f"SELECT id FROM {table} WHERE email = :email LIMIT 1",
         params={"email": email},
         ttl=0,
     )
 
-    print(df.iloc[0]["id"])
+    print(df)
     if df.empty:
         return None
     return int(df.iloc[0]["id"])

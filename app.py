@@ -1,8 +1,14 @@
 import streamlit as st
+try:
+    import incorta 
+except ImportError:
+    print('model not found, skipping import')
+
+from utils.logo import logo_data_uri
 
 st.set_page_config(
     page_title="Access requests",
-    page_icon="static/incorta-logo.svg",
+    page_icon=logo_data_uri(),
     layout="wide",
 )
 
